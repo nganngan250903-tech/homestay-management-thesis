@@ -3,30 +3,28 @@ package com.example.homestaymanager.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
-
 @Entity
-@Table(name = "employees")
+@Table(name = "customers")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Employee {
+public class Customer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
+    private String email;
+    private String password;
     @Column(nullable = false)
     private String name;
-    private BigDecimal salary;
-    private String email;
-    private  String password;
-
     @Column(nullable = false)
     private  String phone;
     private  String address;
     private  String image;
-    @ManyToOne @JoinColumn(name = "role_id")
-    private Role role;
-
 }
+
+
+
+
+
+
