@@ -14,6 +14,10 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RoomAmenity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
     @ManyToOne
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
