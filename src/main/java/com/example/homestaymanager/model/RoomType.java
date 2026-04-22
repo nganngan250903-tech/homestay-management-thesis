@@ -1,0 +1,24 @@
+package com.example.homestaymanager.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "roomTypes")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class RoomType {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    @Column(nullable = false)
+    private String name;
+
+    private String description;
+    @Column(nullable = false)
+    private  int maxGuest;
+    private  String image;
+}
