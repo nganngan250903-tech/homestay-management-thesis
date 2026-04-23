@@ -28,6 +28,7 @@ public class Booking {
     @ManyToOne @JoinColumn(name = "employee_id")
     private Employee employee;
     @ManyToOne @JoinColumn(name = "room_id")
+    private Room room;
     private LocalDateTime checkIn;
     private LocalDateTime checkOut;
     private int guestCount;
