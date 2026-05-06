@@ -16,5 +16,5 @@ public class UpdateEmployee {
     private  String phone;
     private  String address;
     private  String image;
-    private Role role;
+    private Integer roleId;
 }

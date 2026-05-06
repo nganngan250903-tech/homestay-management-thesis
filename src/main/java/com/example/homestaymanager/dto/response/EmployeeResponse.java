@@ -1,4 +1,5 @@
 package com.example.homestaymanager.dto.response;
+import com.example.homestaymanager.model.Role;
 import lombok.Data;
 
 @Data
@@ -10,6 +11,5 @@ public class EmployeeResponse {
     private String phone;
     private String address;
     private String image;
-
-    private RoleResponse role; // nested object
+    private Role role;
 }

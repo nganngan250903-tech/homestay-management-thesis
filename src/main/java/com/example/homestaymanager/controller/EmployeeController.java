@@ -36,11 +36,11 @@ public class EmployeeController {
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS,employee);
     }
 
-    //@PatchMapping("/employees/{employeeId}")
-//    public ApiResponse<Employee> updateEmployeeByID(@PathVariable int employeeId,@RequestBody UpdateEmployee dtoEmp){
-//        Employee emp =  employeeService.UpdateEmployeeById(employeeId,dtoEmp);
-//        return ApiResponse.of(ApiStatus.OK,ApiMessage.UPDATED,emp);
-//    }
+    @PatchMapping("/employees/{employeeId}")
+    public ApiResponse<EmployeeResponse> updateEmployeeByID(@PathVariable int employeeId,@RequestBody UpdateEmployee dtoEmp){
+        EmployeeResponse emp =  employeeService.UpdateEmployeeById(employeeId,dtoEmp);
+        return ApiResponse.of(ApiStatus.OK,ApiMessage.UPDATED,emp);
+    }
 
     @DeleteMapping("/employees/{employeeId}")
     public ApiResponse<?> deleteEmployeeById(@PathVariable int employeeId){

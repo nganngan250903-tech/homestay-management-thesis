@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class HomestayManagerApplication {
 
     public static void main(String[] args) {
+        System.out.println("ENV HOST = " + System.getenv("DB_HOST"));
         SpringApplication.run(HomestayManagerApplication.class, args);
     }
 

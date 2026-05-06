@@ -10,6 +10,6 @@ public interface EmployeeService {
     Integer createEmployee(Employee employee);
      public void deleteEmployeeById(int id);
     ArrayList<Employee> getListEmployee();
-    //EmployeeResponse  UpdateEmployeeById(int id, UpdateEmployee dtoEmp );
+    EmployeeResponse  UpdateEmployeeById(int id, UpdateEmployee dtoEmp );
     EmployeeResponse getEmployeeByID(int id);
 }
