@@ -1,5 +1,6 @@
 package com.example.homestaymanager.service;
 
+import com.example.homestaymanager.security.AuthenticatedUser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,5 +77,44 @@ public class JwtService {
 
     private static String base64Url(byte[] bytes) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public AuthenticatedUser parseToken(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length != 3) {
+                return null;
+            }
+            
+            // Verify signature
+            String unsignedToken = parts[0] + "." + parts[1];
+            String expectedSignature = sign(unsignedToken);
+            if (!parts[2].equals(expectedSignature)) {
+                return null; // Signature verification failed
+            }
+            
+            String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]));
+            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
+
+            long exp = ((Number) payload.get("exp")).longValue();
+            long now = Instant.now().getEpochSecond();
+            if (exp < now) {
+                return null;
+            }
+
+            int id = ((Number) payload.get("id")).intValue();
+            String email = (String) payload.get("email");
+            String userType = (String) payload.get("userType");
+            String role = (String) payload.get("role");
+
+            return AuthenticatedUser.builder()
+                    .id(id)
+                    .email(email)
+                    .userType(userType)
+                    .role(role)
+                    .build();
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
