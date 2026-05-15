@@ -32,6 +32,7 @@ public class Booking {
     private LocalDateTime checkIn;
     private LocalDateTime checkOut;
     private int guestCount;
+    private LocalDateTime pendingExpiresAt;
     @Enumerated(EnumType.STRING)
     private BookingStatus currentStatus;
     @Column(updatable = false)

@@ -28,6 +28,8 @@ public class BookingResponse {
     private BigDecimal totalAmount;
     private BigDecimal paidAmount;
     private boolean hasSentReminder;
+    private Integer refundPercentage;
+    private LocalDateTime pendingExpiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

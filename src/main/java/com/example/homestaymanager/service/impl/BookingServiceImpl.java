@@ -15,6 +15,10 @@ import com.example.homestaymanager.repository.RoomPricingRepository;
 import com.example.homestaymanager.repository.RoomRepository;
 import com.example.homestaymanager.service.BookingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +27,12 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.MonthDay;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -86,6 +92,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setCheckOut(request.getCheckOut());
         booking.setGuestCount(request.getGuestCount());
         booking.setCurrentStatus(BookingStatus.PENDING);
+        booking.setPendingExpiresAt(LocalDateTime.now().plusMinutes(10));
         booking.setTotalAmount(total);
         booking.setPaidAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         booking.setHasSentReminder(false);
@@ -95,11 +102,26 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public BookingResponse getBookingById(int id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
+        expirePendingIfNecessary(booking);
         return toResponse(booking);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BookingResponse> getBookings(Integer customerId, Integer roomId, Integer branchId, BookingStatus status, int page, int size) {
+        if (page < 0) {
+            page = 0;
+        }
+        if (size <= 0) {
+            size = 20;
+        }
+        Pageable pageable = PageRequest.of(page, size);
+        return bookingRepository.findByFilters(customerId, roomId, branchId, status, pageable)
+                .map(BookingServiceImpl::toResponse);
     }
 
     @Override
@@ -110,6 +132,7 @@ public class BookingServiceImpl implements BookingService {
         }
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
+        expirePendingIfNecessary(booking);
         assertStatusTransition(booking.getCurrentStatus(), newStatus);
         booking.setCurrentStatus(newStatus);
         return toResponse(booking);
@@ -120,9 +143,13 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse cancelBooking(int id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
+        expirePendingIfNecessary(booking);
         BookingStatus s = booking.getCurrentStatus();
         if (s != BookingStatus.PENDING && s != BookingStatus.CONFIRMED) {
             throw new RuntimeException("Chỉ có thể hủy booking đang PENDING hoặc CONFIRMED");
+        }
+        if (!booking.getCheckIn().isAfter(LocalDateTime.now())) {
+            throw new RuntimeException("Không thể hủy booking đã bắt đầu hoặc đã quá hạn");
         }
         booking.setCurrentStatus(BookingStatus.CANCELLED);
         return toResponse(booking);
@@ -132,8 +159,14 @@ public class BookingServiceImpl implements BookingService {
         if (checkIn == null || checkOut == null) {
             throw new RuntimeException("Ngày checkIn và checkOut là bắt buộc");
         }
+        if (!checkIn.isAfter(LocalDateTime.now())) {
+            throw new RuntimeException("Ngày checkIn phải sau thời điểm hiện tại");
+        }
         if (!checkOut.isAfter(checkIn)) {
             throw new RuntimeException("Ngày checkOut phải sau Ngày checkIn");
+        }
+        if (!checkOut.toLocalDate().isAfter(checkIn.toLocalDate())) {
+            throw new RuntimeException("Phải đặt tối thiểu 1 đêm");
         }
     }
 
@@ -164,15 +197,61 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private static BigDecimal rateForNight(RoomPricing pricing, LocalDate night) {
-        DayOfWeek dow = night.getDayOfWeek();
-        boolean weekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
         BigDecimal base = pricing.getBasePrice() != null
                 ? pricing.getBasePrice()
                 : BigDecimal.ZERO;
+        if (pricing.getHolidayPrice() != null && isHoliday(night)) {
+            return pricing.getHolidayPrice();
+        }
+        DayOfWeek dow = night.getDayOfWeek();
+        boolean weekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
         if (weekend && pricing.getWeekendPrice() != null) {
             return pricing.getWeekendPrice();
         }
         return base;
+    }
+
+    private static boolean isHoliday(LocalDate date) {
+        Set<MonthDay> weekendHolidays = Set.of(
+                MonthDay.of(1, 1),
+                MonthDay.of(4, 30),
+                MonthDay.of(5, 1),
+                MonthDay.of(9, 2)
+        );
+        return weekendHolidays.contains(MonthDay.from(date));
+    }
+
+    private static int computeRefundPercentage(LocalDateTime checkIn, LocalDateTime cancellationTime) {
+        if (cancellationTime.isBefore(checkIn.minusHours(24))) {
+            return 100;
+        }
+        if (cancellationTime.isBefore(checkIn)) {
+            return 50;
+        }
+        return 0;
+    }
+
+    private void expirePendingIfNecessary(Booking booking) {
+        if (booking.getCurrentStatus() == BookingStatus.PENDING
+                && booking.getPendingExpiresAt() != null
+                && LocalDateTime.now().isAfter(booking.getPendingExpiresAt())) {
+            booking.setCurrentStatus(BookingStatus.CANCELLED);
+            bookingRepository.save(booking);
+        }
+    }
+
+    @Scheduled(fixedRateString = "60000")
+    @Transactional
+    public void expirePendingBookings() {
+        List<Booking> expired = bookingRepository.findByCurrentStatusAndPendingExpiresAtBefore(
+                BookingStatus.PENDING, LocalDateTime.now());
+        if (expired.isEmpty()) {
+            return;
+        }
+        for (Booking booking : expired) {
+            booking.setCurrentStatus(BookingStatus.CANCELLED);
+        }
+        bookingRepository.saveAll(expired);
     }
 
     private static void assertStatusTransition(BookingStatus from, BookingStatus to) {
@@ -202,6 +281,11 @@ public class BookingServiceImpl implements BookingService {
     private static BookingResponse toResponse(Booking b) {
         Integer employeeId = b.getEmployee() != null ? b.getEmployee().getId() : null;
         Integer branchId = b.getRoom().getBranch() != null ? b.getRoom().getBranch().getId() : null;
+        Integer refundPercentage = null;
+        if (b.getCurrentStatus() == BookingStatus.CANCELLED) {
+            LocalDateTime referenceTime = b.getUpdatedAt() != null ? b.getUpdatedAt() : LocalDateTime.now();
+            refundPercentage = computeRefundPercentage(b.getCheckIn(), referenceTime);
+        }
         return BookingResponse.builder()
                 .id(b.getId())
                 .customerId(b.getCustomer().getId())
@@ -217,6 +301,8 @@ public class BookingServiceImpl implements BookingService {
                 .totalAmount(b.getTotalAmount())
                 .paidAmount(b.getPaidAmount())
                 .hasSentReminder(b.isHasSentReminder())
+                .refundPercentage(refundPercentage)
+                .pendingExpiresAt(b.getPendingExpiresAt())
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .build();

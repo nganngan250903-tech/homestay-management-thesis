@@ -7,6 +7,11 @@ import org.springframework.web.bind.annotation.*;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ApiResponse<?> handleUnauthorizedException(UnauthorizedException ex){
+        return ApiResponse.of(ApiStatus.UNAUTHORIZED, ex.getMessage(), null);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ApiResponse<?> handleRuntimeException(RuntimeException ex){
         return ApiResponse.of(ApiStatus.NOT_FOUND, ex.getMessage(), null);

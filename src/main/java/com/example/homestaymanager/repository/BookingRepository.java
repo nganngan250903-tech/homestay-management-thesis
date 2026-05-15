@@ -9,6 +9,9 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Integer> {
@@ -25,4 +28,21 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
             @Param("checkIn") LocalDateTime checkIn,
             @Param("checkOut") LocalDateTime checkOut,
             @Param("statuses") Collection<BookingStatus> statuses);
+
+    @Query("""
+            select b from Booking b
+            where (:customerId is null or b.customer.id = :customerId)
+              and (:roomId is null or b.room.id = :roomId)
+              and (:branchId is null or b.room.branch.id = :branchId)
+              and (:status is null or b.currentStatus = :status)
+            order by b.checkIn desc
+            """)
+    Page<Booking> findByFilters(
+            @Param("customerId") Integer customerId,
+            @Param("roomId") Integer roomId,
+            @Param("branchId") Integer branchId,
+            @Param("status") BookingStatus status,
+            Pageable pageable);
+
+    java.util.List<Booking> findByCurrentStatusAndPendingExpiresAtBefore(BookingStatus status, LocalDateTime now);
 }
