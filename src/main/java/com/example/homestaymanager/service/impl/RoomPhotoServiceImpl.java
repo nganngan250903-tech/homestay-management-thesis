@@ -1,10 +1,12 @@
 package com.example.homestaymanager.service.impl;
 
+import com.example.homestaymanager.dto.request.UpdateRoomPhotoRequest;
 import com.example.homestaymanager.model.RoomPhoto;
 import com.example.homestaymanager.repository.RoomPhotoRepository;
 import com.example.homestaymanager.service.RoomPhotoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -35,5 +37,22 @@ public class RoomPhotoServiceImpl implements RoomPhotoService {
                 .orElseThrow(() -> new RuntimeException("RoomPhoto not found"));
 
         roomPhotoRepository.delete(roomPhoto);
+    }
+
+    @Override
+    public List<RoomPhoto> getListRoomPhoto() {
+        return roomPhotoRepository.findAll();
+    }
+
+    @Override
+    public RoomPhoto updateRoomPhotoById(int id, UpdateRoomPhotoRequest request) {
+        RoomPhoto roomPhoto = roomPhotoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("RoomPhoto not found"));
+
+        if (request.getPhoto() != null && !request.getPhoto().isBlank()) {
+            roomPhoto.setPhoto(request.getPhoto());
+        }
+
+        return roomPhotoRepository.save(roomPhoto);
     }
 }
