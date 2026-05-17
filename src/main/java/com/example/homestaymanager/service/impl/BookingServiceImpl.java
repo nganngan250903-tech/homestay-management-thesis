@@ -18,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -92,7 +91,6 @@ public class BookingServiceImpl implements BookingService {
         booking.setCheckOut(request.getCheckOut());
         booking.setGuestCount(request.getGuestCount());
         booking.setCurrentStatus(BookingStatus.PENDING);
-        booking.setPendingExpiresAt(LocalDateTime.now().plusMinutes(10));
         booking.setTotalAmount(total);
         booking.setPaidAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         booking.setHasSentReminder(false);
@@ -102,11 +100,10 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public BookingResponse getBookingById(int id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
-        expirePendingIfNecessary(booking);
         return toResponse(booking);
     }
 
@@ -132,7 +129,6 @@ public class BookingServiceImpl implements BookingService {
         }
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
-        expirePendingIfNecessary(booking);
         assertStatusTransition(booking.getCurrentStatus(), newStatus);
         booking.setCurrentStatus(newStatus);
         return toResponse(booking);
@@ -143,7 +139,6 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse cancelBooking(int id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
-        expirePendingIfNecessary(booking);
         BookingStatus s = booking.getCurrentStatus();
         if (s != BookingStatus.PENDING && s != BookingStatus.CONFIRMED) {
             throw new RuntimeException("Chỉ có thể hủy booking đang PENDING hoặc CONFIRMED");
@@ -231,29 +226,6 @@ public class BookingServiceImpl implements BookingService {
         return 0;
     }
 
-    private void expirePendingIfNecessary(Booking booking) {
-        if (booking.getCurrentStatus() == BookingStatus.PENDING
-                && booking.getPendingExpiresAt() != null
-                && LocalDateTime.now().isAfter(booking.getPendingExpiresAt())) {
-            booking.setCurrentStatus(BookingStatus.CANCELLED);
-            bookingRepository.save(booking);
-        }
-    }
-
-    @Scheduled(fixedRateString = "60000")
-    @Transactional
-    public void expirePendingBookings() {
-        List<Booking> expired = bookingRepository.findByCurrentStatusAndPendingExpiresAtBefore(
-                BookingStatus.PENDING, LocalDateTime.now());
-        if (expired.isEmpty()) {
-            return;
-        }
-        for (Booking booking : expired) {
-            booking.setCurrentStatus(BookingStatus.CANCELLED);
-        }
-        bookingRepository.saveAll(expired);
-    }
-
     private static void assertStatusTransition(BookingStatus from, BookingStatus to) {
         if (from == to) {
             return;
@@ -302,7 +274,6 @@ public class BookingServiceImpl implements BookingService {
                 .paidAmount(b.getPaidAmount())
                 .hasSentReminder(b.isHasSentReminder())
                 .refundPercentage(refundPercentage)
-                .pendingExpiresAt(b.getPendingExpiresAt())
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .build();
