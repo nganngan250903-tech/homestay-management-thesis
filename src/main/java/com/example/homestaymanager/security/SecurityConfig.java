@@ -21,66 +21,66 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/auth/**",
+            "/api/auth/**",
+            "/oauth2/**",
+            "/login/**",
+            "/error"
+    };
+
+    private static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/rooms/**",
+            "/roomTypes/**",
+            "/branches/**",
+            "/amenities/**",
+            "/categories/**",
+            "/roomPricings/**",
+            "/roomPhotos/**"
+    };
+
+    private static final String[] ADMIN_WRITE_ENDPOINTS = {
+            "/roles/**",
+            "/rooms/**",
+            "/branches/**",
+            "/amenities/**",
+            "/categories/**",
+            "/roomTypes/**",
+            "/roomPricings/**",
+            "/roomPhotos/**",
+            "/uploads/**"
+    };
+
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService) {
         return new JwtAuthenticationFilter(jwtService);
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+            OAuth2LoginFailureHandler oAuth2LoginFailureHandler
+    ) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.POST,
-                                "/auth/login",
-                                "/auth/customer/register"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.GET,
-                                "/rooms/**",
-                                "/roomTypes/**",
-                                "/branches/**",
-                                "/amenities/**",
-                                "/categories/**",
-                                "/roomPricings/**",
-                                "/roomPhotos/**",
-                                "/auth/**"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                "/roles/**",
-                                "/rooms/**",
-                                "/branches/**",
-                                "/amenities/**",
-                                "/categories/**",
-                                "/roomTypes/**",
-                                "/roomPricings/**",
-                                "/roomPhotos/**",
-                                "/uploads/**"
-                        ).hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH,
-                                "/roles/**",
-                                "/rooms/**",
-                                "/branches/**",
-                                "/amenities/**",
-                                "/categories/**",
-                                "/roomTypes/**",
-                                "/roomPricings/**",
-                                "/roomPhotos/**",
-                                "/uploads/**"
-                        ).hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE,
-                                "/roles/**",
-                                "/rooms/**",
-                                "/branches/**",
-                                "/amenities/**",
-                                "/categories/**",
-                                "/roomTypes/**",
-                                "/roomPricings/**",
-                                "/roomPhotos/**",
-                                "/uploads/**"
-                        ).hasAuthority("ADMIN")
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.POST, ADMIN_WRITE_ENDPOINTS).hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, ADMIN_WRITE_ENDPOINTS).hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, ADMIN_WRITE_ENDPOINTS).hasAuthority("ADMIN")
                         .anyRequest().authenticated()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authorization -> authorization.baseUri("/oauth2/authorization"))
+                        .redirectionEndpoint(redirection -> redirection.baseUri("/login/oauth2/code/*"))
+                        .successHandler(oAuth2LoginSuccessHandler)
+                        .failureHandler(oAuth2LoginFailureHandler)
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -90,7 +90,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("https://homestay-frontend-ruddy.vercel.app"));
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "https://homestay-frontend-ruddy.vercel.app"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

@@ -4,6 +4,7 @@ import com.example.homestaymanager.dto.request.LoginRequest;
 import com.example.homestaymanager.dto.request.RegisterRequest;
 import com.example.homestaymanager.dto.response.AuthUserResponse;
 import com.example.homestaymanager.dto.response.LoginResponse;
+import com.example.homestaymanager.enums.AuthProvider;
 import com.example.homestaymanager.enums.CustomerStatus;
 import com.example.homestaymanager.exception.UnauthorizedException;
 import com.example.homestaymanager.model.Customer;
@@ -69,6 +70,7 @@ public class AuthServiceImpl implements AuthService {
         customer.setPassword(request.getPassword());
         customer.setPhone(request.getPhone());
         customer.setStatus(CustomerStatus.ACTIVE);
+        customer.setProvider(AuthProvider.LOCAL);
         customerRepository.save(customer);
 
         return customerLoginResponse(customer);

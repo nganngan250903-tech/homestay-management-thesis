@@ -3,6 +3,7 @@ package com.example.homestaymanager.service.impl;
 import com.example.homestaymanager.dto.request.UpdateCustomerRequest;
 import com.example.homestaymanager.dto.response.BookingResponse;
 import com.example.homestaymanager.dto.response.CustomerResponse;
+import com.example.homestaymanager.enums.AuthProvider;
 import com.example.homestaymanager.enums.CustomerStatus;
 import com.example.homestaymanager.model.Customer;
 
@@ -24,6 +25,9 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Integer createCustomer(Customer customer){
+        if (customer.getProvider() == null) {
+            customer.setProvider(AuthProvider.LOCAL);
+        }
         customerRepository.save(customer);
         return customer.getId();
     }
@@ -128,6 +132,7 @@ public class CustomerServiceImpl implements CustomerService {
         res.setAddress(customer.getAddress());
         res.setImage(customer.getImage());
         res.setStatus(customer.getStatus() != null ? customer.getStatus() : CustomerStatus.ACTIVE);
+        res.setProvider(customer.getProvider() != null ? customer.getProvider() : AuthProvider.LOCAL);
         return res;
     }
 }
