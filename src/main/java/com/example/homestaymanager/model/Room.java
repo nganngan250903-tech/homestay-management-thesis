@@ -20,9 +20,11 @@ public class Room {
     private Branch branch;
     @ManyToOne @JoinColumn(name = "roomType_id")
     private RoomType roomType;
+    private String name;
     private int number;
     private float area;
     private String thumbnail;
     @Enumerated(EnumType.STRING)
+    @Column(length = 30)
     private RoomStatus status = RoomStatus.AVAILABLE;
 }

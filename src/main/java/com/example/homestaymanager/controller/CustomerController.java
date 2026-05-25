@@ -30,6 +30,21 @@ public class CustomerController {
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, customerService.getListCustomer(keyword));
     }
 
+    @GetMapping("/customers/lookup")
+    public ApiResponse<List<CustomerResponse>> lookupCustomers(@RequestParam(required = false) String keyword) {
+        if (!SecurityUtil.isEmployee()) {
+            throw new UnauthorizedException("Only staff can lookup customers");
+        }
+        if (keyword == null || keyword.isBlank()) {
+            return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, List.of());
+        }
+        List<CustomerResponse> customers = customerService.getListCustomer(keyword)
+                .stream()
+                .limit(10)
+                .toList();
+        return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, customers);
+    }
+
     @PostMapping("/customers")
     public ApiResponse<Integer> createCustomer(@RequestBody Customer customer) {
         if (!SecurityUtil.isAdmin()) {

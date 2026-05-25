@@ -5,12 +5,14 @@ import com.example.homestaymanager.dto.request.CreateRoomRequest;
 import com.example.homestaymanager.dto.request.UpdateRoomRequest;
 import com.example.homestaymanager.dto.response.RoomAmenityResponse;
 import com.example.homestaymanager.dto.response.RoomResponse;
+import com.example.homestaymanager.enums.BookingStatus;
 import com.example.homestaymanager.enums.RoomStatus;
 import com.example.homestaymanager.model.Amenity;
 import com.example.homestaymanager.model.Room;
 import com.example.homestaymanager.model.RoomAmenity;
 import com.example.homestaymanager.repository.AmenityRepository;
 import com.example.homestaymanager.repository.BranchRepository;
+import com.example.homestaymanager.repository.BookingRepository;
 import com.example.homestaymanager.repository.RoomAmenityRepository;
 import com.example.homestaymanager.repository.RoomRepository;
 import com.example.homestaymanager.repository.RoomTypeRepository;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -26,6 +29,7 @@ import java.util.List;
 public class RoomServiceImpl implements RoomService {
 
     private final RoomRepository roomRepository;
+    private final BookingRepository bookingRepository;
     private final BranchRepository branchRepository;
     private final RoomTypeRepository roomTypeRepository;
     private final AmenityRepository amenityRepository;
@@ -49,6 +53,7 @@ public class RoomServiceImpl implements RoomService {
                 .orElseThrow(() -> new RuntimeException("Branch not found")));
         room.setRoomType(roomTypeRepository.findById(request.getRoomTypeId())
                 .orElseThrow(() -> new RuntimeException("RoomType not found")));
+        room.setName(resolveRoomName(request.getName(), request.getNumber()));
         room.setNumber(request.getNumber());
         room.setArea(request.getArea());
         room.setThumbnail(request.getThumbnail());
@@ -102,6 +107,12 @@ public class RoomServiceImpl implements RoomService {
             room.setNumber(request.getNumber());
         }
 
+        if (request.getName() != null && !request.getName().isBlank()) {
+            room.setName(request.getName().trim());
+        } else if ((room.getName() == null || room.getName().isBlank()) && request.getNumber() != null && request.getNumber() > 0) {
+            room.setName(resolveRoomName(null, request.getNumber()));
+        }
+
         if (request.getArea() != null && request.getArea() > 0) {
             room.setArea(request.getArea());
         }
@@ -111,7 +122,7 @@ public class RoomServiceImpl implements RoomService {
         }
 
         if (request.getStatus() != null) {
-            room.setStatus(request.getStatus());
+            room.setStatus(resolveManualRoomStatus(room.getId(), request.getStatus()));
         }
 
         Room saved = roomRepository.save(room);
@@ -156,11 +167,44 @@ public class RoomServiceImpl implements RoomService {
                 .id(room.getId())
                 .branch(room.getBranch())
                 .roomType(room.getRoomType())
+                .name(resolveRoomName(room.getName(), room.getNumber()))
                 .number(room.getNumber())
                 .area(room.getArea())
                 .thumbnail(room.getThumbnail())
                 .status(room.getStatus() != null ? room.getStatus() : RoomStatus.AVAILABLE)
                 .amenities(amenities)
                 .build();
+    }
+
+    private String resolveRoomName(String name, int number) {
+        if (name != null && !name.isBlank()) {
+            return name.trim();
+        }
+        return "Phòng " + number;
+    }
+
+    private RoomStatus resolveManualRoomStatus(int roomId, RoomStatus requestedStatus) {
+        if (requestedStatus != RoomStatus.AVAILABLE) {
+            return requestedStatus;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (bookingRepository
+                .findFirstByRoomIdAndCurrentStatusAndActualCheckInAtIsNotNullAndActualCheckOutAtIsNullOrderByActualCheckInAtDesc(
+                        roomId,
+                        BookingStatus.CONFIRMED)
+                .isPresent()) {
+            return RoomStatus.OCCUPIED;
+        }
+        if (bookingRepository
+                .findFirstByRoomIdAndCurrentStatusAndActualCheckInAtIsNullAndActualCheckOutAtIsNullAndCheckInLessThanEqualAndCheckOutAfterOrderByCheckInAsc(
+                        roomId,
+                        BookingStatus.CONFIRMED,
+                        now,
+                        now)
+                .isPresent()) {
+            return RoomStatus.WAITING_CHECKIN;
+        }
+        return RoomStatus.AVAILABLE;
     }
 }

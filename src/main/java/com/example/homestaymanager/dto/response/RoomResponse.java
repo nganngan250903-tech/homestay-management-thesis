@@ -18,6 +18,7 @@ public class RoomResponse {
     private int id;
     private Branch branch;
     private RoomType roomType;
+    private String name;
     private int number;
     private float area;
     private String thumbnail;

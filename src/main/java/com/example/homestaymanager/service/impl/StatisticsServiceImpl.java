@@ -84,8 +84,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     private boolean isRevenueBooking(Booking booking) {
-        return booking.getCurrentStatus() == BookingStatus.CONFIRMED
-                || booking.getCurrentStatus() == BookingStatus.CHECKED_IN
-                || booking.getCurrentStatus() == BookingStatus.CHECKED_OUT;
+        return booking.getCurrentStatus() == BookingStatus.CONFIRMED;
     }
 }

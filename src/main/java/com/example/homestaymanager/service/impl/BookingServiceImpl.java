@@ -3,6 +3,7 @@ package com.example.homestaymanager.service.impl;
 import com.example.homestaymanager.dto.request.CreateBookingRequest;
 import com.example.homestaymanager.dto.response.BookingResponse;
 import com.example.homestaymanager.enums.BookingStatus;
+import com.example.homestaymanager.enums.RoomStatus;
 import com.example.homestaymanager.model.Booking;
 import com.example.homestaymanager.model.Customer;
 import com.example.homestaymanager.model.Employee;
@@ -30,6 +31,7 @@ import java.time.MonthDay;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -41,8 +43,7 @@ public class BookingServiceImpl implements BookingService {
 
     private static final List<BookingStatus> BLOCKING_STATUSES = List.of(
             BookingStatus.PENDING,
-            BookingStatus.CONFIRMED,
-            BookingStatus.CHECKED_IN);
+            BookingStatus.CONFIRMED);
 
     private final BookingRepository bookingRepository;
     private final CustomerRepository customerRepository;
@@ -59,8 +60,7 @@ public class BookingServiceImpl implements BookingService {
             throw new RuntimeException("Số lượng khách phải >= 1");
         }
 
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại"));
+        Customer customer = resolveCustomer(request);
         Room room = roomRepository.findById(request.getRoomId())
                 .orElseThrow(() -> new RuntimeException("Phòng không tồn tại"));
 
@@ -102,6 +102,49 @@ public class BookingServiceImpl implements BookingService {
         return toResponse(booking);
     }
 
+    private Customer resolveCustomer(CreateBookingRequest request) {
+        if (request.getCustomerId() > 0) {
+            return customerRepository.findById(request.getCustomerId())
+                    .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại"));
+        }
+
+        String keyword = request.getCustomerKeyword();
+        if (keyword == null || keyword.isBlank()) {
+            throw new RuntimeException("Vui lòng nhập tên hoặc email khách hàng");
+        }
+
+        String normalized = keyword.trim();
+        if (normalized.contains("@")) {
+            return customerRepository.findByEmailIgnoreCase(normalized)
+                    .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại"));
+        }
+
+        List<Customer> exactMatches = customerRepository.findByNameIgnoreCase(normalized);
+        if (exactMatches.size() == 1) {
+            return exactMatches.get(0);
+        }
+        if (exactMatches.size() > 1) {
+            throw new RuntimeException("Có nhiều khách hàng trùng tên, vui lòng nhập email");
+        }
+
+        String lowerKeyword = normalized.toLowerCase(Locale.ROOT);
+        List<Customer> matches = customerRepository.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrPhoneContainingIgnoreCase(
+                normalized,
+                normalized,
+                normalized);
+        List<Customer> filtered = matches.stream()
+                .filter(customer -> customer.getName() != null && customer.getName().toLowerCase(Locale.ROOT).contains(lowerKeyword))
+                .toList();
+        if (filtered.size() == 1) {
+            return filtered.get(0);
+        }
+        if (filtered.size() > 1) {
+            throw new RuntimeException("Có nhiều khách hàng phù hợp, vui lòng nhập email");
+        }
+
+        throw new RuntimeException("Khách hàng không tồn tại");
+    }
+
     @Override
     @Transactional(readOnly = true)
     public BookingResponse getBookingById(int id) {
@@ -112,7 +155,7 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<BookingResponse> getBookings(Integer customerId, Integer roomId, Integer branchId, BookingStatus status, int page, int size) {
+    public Page<BookingResponse> getBookings(Integer customerId, String customerName, Integer roomId, Integer branchId, BookingStatus status, LocalDate dateFrom, LocalDate dateTo, int page, int size) {
         if (page < 0) {
             page = 0;
         }
@@ -120,7 +163,12 @@ public class BookingServiceImpl implements BookingService {
             size = 20;
         }
         Pageable pageable = PageRequest.of(page, size);
-        return bookingRepository.findByFilters(customerId, roomId, branchId, status, pageable)
+        String normalizedCustomerName = customerName != null && !customerName.isBlank()
+                ? customerName.trim()
+                : null;
+        LocalDateTime from = dateFrom != null ? dateFrom.atStartOfDay() : null;
+        LocalDateTime to = dateTo != null ? dateTo.plusDays(1).atStartOfDay() : null;
+        return bookingRepository.findByFilters(customerId, normalizedCustomerName, roomId, branchId, status, from, to, pageable)
                 .map(BookingServiceImpl::toResponse);
     }
 
@@ -134,6 +182,11 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new RuntimeException("Booking không tồn tại"));
         assertStatusTransition(booking.getCurrentStatus(), newStatus);
         booking.setCurrentStatus(newStatus);
+        if (newStatus == BookingStatus.CONFIRMED) {
+            refreshRoomStatusFromCurrentBookings(booking.getRoom());
+        } else if (newStatus == BookingStatus.CANCELLED || newStatus == BookingStatus.NO_SHOW) {
+            refreshRoomStatusFromCurrentBookings(booking.getRoom());
+        }
         return toResponse(booking);
     }
 
@@ -150,7 +203,70 @@ public class BookingServiceImpl implements BookingService {
             throw new RuntimeException("Không thể hủy booking đã bắt đầu hoặc đã quá hạn");
         }
         booking.setCurrentStatus(BookingStatus.CANCELLED);
+        refreshRoomStatusFromCurrentBookings(booking.getRoom());
         return toResponse(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse checkIn(int bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking không tồn tại"));
+        if (booking.getCurrentStatus() != BookingStatus.CONFIRMED) {
+            throw new RuntimeException("Chỉ booking đã xác nhận mới có thể check-in");
+        }
+        if (booking.getActualCheckOutAt() != null) {
+            throw new RuntimeException("Booking đã check-out");
+        }
+        if (booking.getActualCheckInAt() == null) {
+            booking.setActualCheckInAt(LocalDateTime.now());
+        }
+        booking.getRoom().setStatus(RoomStatus.OCCUPIED);
+        return toResponse(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse checkOut(int bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking không tồn tại"));
+        if (booking.getCurrentStatus() != BookingStatus.CONFIRMED) {
+            throw new RuntimeException("Chỉ booking đã xác nhận mới có thể check-out");
+        }
+        if (booking.getActualCheckInAt() == null) {
+            throw new RuntimeException("Booking chưa check-in");
+        }
+        if (booking.getActualCheckOutAt() == null) {
+            booking.setActualCheckOutAt(LocalDateTime.now());
+        }
+        booking.getRoom().setStatus(RoomStatus.CLEANING);
+        return toResponse(booking);
+    }
+
+    private void refreshRoomStatusFromCurrentBookings(Room room) {
+        RoomStatus nextStatus = resolveCurrentRoomStatus(room.getId());
+        room.setStatus(nextStatus);
+    }
+
+    private RoomStatus resolveCurrentRoomStatus(int roomId) {
+        LocalDateTime now = LocalDateTime.now();
+        if (bookingRepository
+                .findFirstByRoomIdAndCurrentStatusAndActualCheckInAtIsNotNullAndActualCheckOutAtIsNullOrderByActualCheckInAtDesc(
+                        roomId,
+                        BookingStatus.CONFIRMED)
+                .isPresent()) {
+            return RoomStatus.OCCUPIED;
+        }
+        if (bookingRepository
+                .findFirstByRoomIdAndCurrentStatusAndActualCheckInAtIsNullAndActualCheckOutAtIsNullAndCheckInLessThanEqualAndCheckOutAfterOrderByCheckInAsc(
+                        roomId,
+                        BookingStatus.CONFIRMED,
+                        now,
+                        now)
+                .isPresent()) {
+            return RoomStatus.WAITING_CHECKIN;
+        }
+        return RoomStatus.AVAILABLE;
     }
 
     private void validateTimes(LocalDateTime checkIn, LocalDateTime checkOut) {
@@ -240,13 +356,8 @@ public class BookingServiceImpl implements BookingService {
                 }
             }
             case CONFIRMED -> {
-                if (to != BookingStatus.CHECKED_IN && to != BookingStatus.CANCELLED && to != BookingStatus.NO_SHOW) {
+                if (to != BookingStatus.CANCELLED && to != BookingStatus.NO_SHOW) {
                     throw new RuntimeException("Không thể chuyển CONFIRMED sang " + to);
-                }
-            }
-            case CHECKED_IN -> {
-                if (to != BookingStatus.CHECKED_OUT) {
-                    throw new RuntimeException("Chỉ có thể chuyển CHECKED_IN sang CHECKED_OUT");
                 }
             }
             default -> throw new RuntimeException("Không thể đổi trạng thái từ " + from);
@@ -255,6 +366,7 @@ public class BookingServiceImpl implements BookingService {
 
     public static BookingResponse toResponse(Booking booking) {
         Integer employeeId = booking.getEmployee() != null ? booking.getEmployee().getId() : null;
+        String employeeName = booking.getEmployee() != null ? booking.getEmployee().getName() : null;
         Integer branchId = booking.getRoom().getBranch() != null ? booking.getRoom().getBranch().getId() : null;
         Integer refundPercentage = null;
         if (booking.getCurrentStatus() == BookingStatus.CANCELLED) {
@@ -266,14 +378,17 @@ public class BookingServiceImpl implements BookingService {
                 .customerId(booking.getCustomer().getId())
                 .customerName(booking.getCustomer().getName())
                 .employeeId(employeeId)
+                .employeeName(employeeName)
                 .roomId(booking.getRoom().getId())
-                .roomName("Phòng " + booking.getRoom().getNumber())
+                .roomName(resolveRoomName(booking.getRoom()))
                 .branchId(branchId)
                 .roomTypeName(booking.getRoom().getRoomType().getName())
                 .checkIn(booking.getCheckIn())
                 .checkOut(booking.getCheckOut())
                 .guestCount(booking.getGuestCount())
                 .currentStatus(booking.getCurrentStatus())
+                .actualCheckInAt(booking.getActualCheckInAt())
+                .actualCheckOutAt(booking.getActualCheckOutAt())
                 .totalAmount(booking.getTotalAmount())
                 .paidAmount(booking.getPaidAmount())
                 .hasSentReminder(booking.isHasSentReminder())
@@ -282,5 +397,12 @@ public class BookingServiceImpl implements BookingService {
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
                 .build();
+    }
+
+    private static String resolveRoomName(Room room) {
+        if (room.getName() != null && !room.getName().isBlank()) {
+            return room.getName().trim();
+        }
+        return "Phòng " + room.getNumber();
     }
 }
