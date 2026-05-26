@@ -12,7 +12,16 @@ import com.example.homestaymanager.security.SecurityUtil;
 import com.example.homestaymanager.service.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,47 +32,63 @@ public class BookingController {
     @GetMapping("/bookings")
     public ApiResponse<Page<BookingResponse>> getBookings(
             @RequestParam(required = false) Integer customerId,
+            @RequestParam(required = false) String customerName,
             @RequestParam(required = false) Integer roomId,
             @RequestParam(required = false) Integer branchId,
             @RequestParam(required = false) BookingStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        // Khách hàng chỉ xem booking của chính mình
         if (SecurityUtil.isCustomer()) {
             var current = SecurityUtil.getCurrentUser();
             if (current != null && customerId == null) {
                 customerId = current.getId();
             } else if (current != null && customerId != null && customerId != current.getId()) {
-                throw new UnauthorizedException("Không có quyền xem booking của khách hàng khác");
+                throw new UnauthorizedException("Khong co quyen xem booking cua khach hang khac");
             }
         }
-        // Employee và Admin có thể xem tất cả
-        Page<BookingResponse> data = bookingService.getBookings(customerId, roomId, branchId, status, page, size);
+
+        Page<BookingResponse> data = bookingService.getBookings(
+                customerId,
+                customerName,
+                roomId,
+                branchId,
+                status,
+                dateFrom,
+                dateTo,
+                page,
+                size);
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, data);
     }
 
     @PostMapping("/bookings")
     public ApiResponse<BookingResponse> createBooking(@RequestBody CreateBookingRequest request) {
-        // Chỉ Customer có thể tạo booking
-        if (!SecurityUtil.isCustomer()) {
-            throw new UnauthorizedException("Chỉ khách hàng có thể tạo đặt phòng");
-        }
         var current = SecurityUtil.getCurrentUser();
-        if (current != null && request.getCustomerId() != current.getId()) {
-            throw new UnauthorizedException("Bạn chỉ có thể tạo booking cho chính mình");
+        if (!SecurityUtil.isCustomer() && !SecurityUtil.isEmployee()) {
+            throw new UnauthorizedException("Khong co quyen tao booking");
         }
+        if (SecurityUtil.isCustomer() && current != null) {
+            request.setCustomerId(current.getId());
+        }
+        if (SecurityUtil.isCustomer() && current != null && request.getCustomerId() != current.getId()) {
+            throw new UnauthorizedException("Ban chi co the tao booking cho chinh minh");
+        }
+        if (SecurityUtil.isEmployee() && current != null) {
+            request.setEmployeeId(current.getId());
+        }
+
         BookingResponse data = bookingService.createBooking(request);
         return ApiResponse.of(ApiStatus.OK, ApiMessage.CREATED, data);
     }
 
     @GetMapping("/bookings/{bookingId}")
     public ApiResponse<BookingResponse> getBookingById(@PathVariable int bookingId) {
-        // Khách hàng chỉ xem booking của chính mình
         if (SecurityUtil.isCustomer()) {
             BookingResponse booking = bookingService.getBookingById(bookingId);
             var current = SecurityUtil.getCurrentUser();
             if (current != null && booking.getCustomerId() != current.getId()) {
-                throw new UnauthorizedException("Không có quyền xem booking này");
+                throw new UnauthorizedException("Khong co quyen xem booking nay");
             }
         }
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, bookingService.getBookingById(bookingId));
@@ -71,12 +96,11 @@ public class BookingController {
 
     @PatchMapping("/bookings/{bookingId}/status")
     public ApiResponse<BookingResponse> updateStatus(@PathVariable int bookingId, @RequestBody UpdateBookingStatusRequest body) {
-        // Chỉ Employee và Admin có thể cập nhật trạng thái
         if (SecurityUtil.isCustomer()) {
-            throw new UnauthorizedException("Khách hàng không thể cập nhật trạng thái booking");
+            throw new UnauthorizedException("Khach hang khong the cap nhat trang thai booking");
         }
         if (body == null) {
-            return ApiResponse.of(ApiStatus.BAD_REQUEST, "Trạng thái truyền lên không được để trống", null);
+            return ApiResponse.of(ApiStatus.BAD_REQUEST, "Trang thai truyen len khong duoc de trong", null);
         }
         BookingResponse data = bookingService.updateStatus(bookingId, body.getStatus());
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, data);
@@ -84,15 +108,30 @@ public class BookingController {
 
     @PostMapping("/bookings/{bookingId}/cancel")
     public ApiResponse<BookingResponse> cancelBooking(@PathVariable int bookingId) {
-        // Khách hàng chỉ hủy booking của chính mình, Employee và Admin có thể hủy tất cả
         if (SecurityUtil.isCustomer()) {
             BookingResponse booking = bookingService.getBookingById(bookingId);
             var current = SecurityUtil.getCurrentUser();
             if (current != null && booking.getCustomerId() != current.getId()) {
-                throw new UnauthorizedException("Bạn chỉ có thể hủy booking của chính mình");
+                throw new UnauthorizedException("Ban chi co the huy booking cua chinh minh");
             }
         }
         BookingResponse data = bookingService.cancelBooking(bookingId);
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, data);
+    }
+
+    @PostMapping("/bookings/{bookingId}/check-in")
+    public ApiResponse<BookingResponse> checkIn(@PathVariable int bookingId) {
+        if (SecurityUtil.isCustomer()) {
+            throw new UnauthorizedException("Khach hang khong the check-in booking");
+        }
+        return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, bookingService.checkIn(bookingId));
+    }
+
+    @PostMapping("/bookings/{bookingId}/check-out")
+    public ApiResponse<BookingResponse> checkOut(@PathVariable int bookingId) {
+        if (SecurityUtil.isCustomer()) {
+            throw new UnauthorizedException("Khach hang khong the check-out booking");
+        }
+        return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, bookingService.checkOut(bookingId));
     }
 }

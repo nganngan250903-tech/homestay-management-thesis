@@ -18,6 +18,7 @@ public class BookingResponse {
     private int customerId;
     private String customerName;
     private Integer employeeId;
+    private String employeeName;
     private int roomId;
     private String roomName;
     private Integer branchId;
@@ -26,6 +27,8 @@ public class BookingResponse {
     private LocalDateTime checkOut;
     private int guestCount;
     private BookingStatus currentStatus;
+    private LocalDateTime actualCheckInAt;
+    private LocalDateTime actualCheckOutAt;
     private BigDecimal totalAmount;
     private BigDecimal paidAmount;
     private boolean hasSentReminder;

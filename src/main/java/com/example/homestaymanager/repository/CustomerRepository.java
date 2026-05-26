@@ -9,6 +9,10 @@ import java.util.Optional;
 public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     Optional<Customer> findByEmail(String email);
 
+    Optional<Customer> findByEmailIgnoreCase(String email);
+
+    List<Customer> findByNameIgnoreCase(String name);
+
     List<Customer> findByNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrPhoneContainingIgnoreCase(
             String name,
             String email,

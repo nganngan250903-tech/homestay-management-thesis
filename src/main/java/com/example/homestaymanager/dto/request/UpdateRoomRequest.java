@@ -9,6 +9,7 @@ public class UpdateRoomRequest {
 
     private Integer branchId;
     private Integer roomTypeId;
+    private String name;
     private Integer number;       // dùng Integer để cho phép null
     private Float area;
     private String thumbnail;

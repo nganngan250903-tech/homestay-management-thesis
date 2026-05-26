@@ -116,7 +116,7 @@ public class CustomerServiceImpl implements CustomerService {
         if (!customerRepository.existsById(id)) {
             throw new RuntimeException("Customer not found");
         }
-        return bookingRepository.findByFilters(id, null, null, null, org.springframework.data.domain.Pageable.unpaged())
+        return bookingRepository.findByFilters(id, null, null, null, null, null, null, org.springframework.data.domain.Pageable.unpaged())
                 .getContent()
                 .stream()
                 .map(BookingServiceImpl::toResponse)
