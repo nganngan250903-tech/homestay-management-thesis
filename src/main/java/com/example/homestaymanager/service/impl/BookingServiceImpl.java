@@ -1,6 +1,7 @@
 package com.example.homestaymanager.service.impl;
 
 import com.example.homestaymanager.dto.request.CreateBookingRequest;
+import com.example.homestaymanager.dto.response.BookingCalendarResponse;
 import com.example.homestaymanager.dto.response.BookingResponse;
 import com.example.homestaymanager.enums.BookingStatus;
 import com.example.homestaymanager.enums.RoomStatus;
@@ -170,6 +171,31 @@ public class BookingServiceImpl implements BookingService {
         LocalDateTime to = dateTo != null ? dateTo.plusDays(1).atStartOfDay() : null;
         return bookingRepository.findByFilters(customerId, normalizedCustomerName, roomId, branchId, status, from, to, pageable)
                 .map(BookingServiceImpl::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingCalendarResponse> getRoomBookingCalendar(int roomId, LocalDate dateFrom, LocalDate dateTo) {
+        roomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("PhÃ²ng khÃ´ng tá»“n táº¡i"));
+        LocalDate fromDate = dateFrom != null ? dateFrom : LocalDate.now();
+        LocalDate toDate = dateTo != null ? dateTo : fromDate.plusMonths(6);
+        if (!toDate.isAfter(fromDate)) {
+            throw new RuntimeException("Khoáº£ng thá»i gian xem lá»‹ch khÃ´ng há»£p lá»‡");
+        }
+
+        return bookingRepository.findBlockingBookingsForCalendar(
+                        roomId,
+                        fromDate.atStartOfDay(),
+                        toDate.plusDays(1).atStartOfDay(),
+                        BLOCKING_STATUSES)
+                .stream()
+                .map(booking -> BookingCalendarResponse.builder()
+                        .checkIn(booking.getCheckIn())
+                        .checkOut(booking.getCheckOut())
+                        .status(booking.getCurrentStatus())
+                        .build())
+                .toList();
     }
 
     @Override
