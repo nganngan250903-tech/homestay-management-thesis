@@ -5,6 +5,7 @@ import com.example.homestaymanager.constant.ApiStatus;
 import com.example.homestaymanager.dto.request.CreateBookingRequest;
 import com.example.homestaymanager.dto.request.UpdateBookingStatusRequest;
 import com.example.homestaymanager.dto.response.ApiResponse;
+import com.example.homestaymanager.dto.response.BookingCalendarResponse;
 import com.example.homestaymanager.dto.response.BookingResponse;
 import com.example.homestaymanager.enums.BookingStatus;
 import com.example.homestaymanager.exception.UnauthorizedException;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -59,6 +61,15 @@ public class BookingController {
                 dateTo,
                 page,
                 size);
+        return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, data);
+    }
+
+    @GetMapping("/rooms/{roomId}/booking-calendar")
+    public ApiResponse<List<BookingCalendarResponse>> getRoomBookingCalendar(
+            @PathVariable int roomId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        List<BookingCalendarResponse> data = bookingService.getRoomBookingCalendar(roomId, dateFrom, dateTo);
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, data);
     }
 

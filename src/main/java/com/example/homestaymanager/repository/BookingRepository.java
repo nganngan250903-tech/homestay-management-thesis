@@ -32,6 +32,20 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
 
     @Query("""
             select b from Booking b
+            where b.room.id = :roomId
+              and b.currentStatus in :statuses
+              and b.checkIn < :dateTo
+              and b.checkOut > :dateFrom
+            order by b.checkIn asc, b.id asc
+            """)
+    List<Booking> findBlockingBookingsForCalendar(
+            @Param("roomId") int roomId,
+            @Param("dateFrom") LocalDateTime dateFrom,
+            @Param("dateTo") LocalDateTime dateTo,
+            @Param("statuses") Collection<BookingStatus> statuses);
+
+    @Query("""
+            select b from Booking b
             where (:customerId is null or b.customer.id = :customerId)
               and (:customerName is null or lower(b.customer.name) like lower(concat('%', :customerName, '%')))
               and (:roomId is null or b.room.id = :roomId)
