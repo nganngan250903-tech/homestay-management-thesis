@@ -6,6 +6,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "rooms")
 @Getter
@@ -21,10 +24,23 @@ public class Room {
     @ManyToOne @JoinColumn(name = "roomType_id")
     private RoomType roomType;
     private String name;
-    private int number;
+    private Integer number;
     private float area;
     private String thumbnail;
     @Enumerated(EnumType.STRING)
     @Column(length = 30)
     private RoomStatus status = RoomStatus.AVAILABLE;
+    private LocalDateTime cleaningStartedAt;
+    private Boolean active = true;
+
+    @PrePersist
+    @PreUpdate
+    private void applyDefaults() {
+        if (active == null) {
+            active = true;
+        }
+        if (status == null) {
+            status = RoomStatus.AVAILABLE;
+        }
+    }
 }

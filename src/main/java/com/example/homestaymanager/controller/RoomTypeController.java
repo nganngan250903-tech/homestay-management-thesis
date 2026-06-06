@@ -4,7 +4,6 @@ import com.example.homestaymanager.constant.ApiMessage;
 import com.example.homestaymanager.constant.ApiStatus;
 import com.example.homestaymanager.dto.request.UpdateRoomTypeRequest;
 import com.example.homestaymanager.dto.response.ApiResponse;
-import com.example.homestaymanager.model.Room;
 import com.example.homestaymanager.model.RoomType;
 
 import com.example.homestaymanager.service.RoomTypeService;

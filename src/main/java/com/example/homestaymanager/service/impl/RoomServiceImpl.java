@@ -7,6 +7,7 @@ import com.example.homestaymanager.dto.response.RoomAmenityResponse;
 import com.example.homestaymanager.dto.response.RoomResponse;
 import com.example.homestaymanager.enums.BookingStatus;
 import com.example.homestaymanager.enums.RoomStatus;
+import com.example.homestaymanager.exception.BadRequestException;
 import com.example.homestaymanager.model.Amenity;
 import com.example.homestaymanager.model.Room;
 import com.example.homestaymanager.model.RoomAmenity;
@@ -39,13 +40,19 @@ public class RoomServiceImpl implements RoomService {
     @Transactional
     public Integer createRoom(CreateRoomRequest request) {
         if (request == null) {
-            throw new RuntimeException("Room request is required");
+            throw new BadRequestException("Thông tin phòng là bắt buộc");
         }
-        if (request.getNumber() <= 0) {
-            throw new RuntimeException("Room number phải > 0");
+        if (request.getBranchId() == null) {
+            throw new BadRequestException("Vui lòng chọn chi nhánh");
+        }
+        if (request.getRoomTypeId() == null) {
+            throw new BadRequestException("Vui lòng chọn loại phòng");
+        }
+        if (request.getNumber() == null || request.getNumber() <= 0) {
+            throw new BadRequestException("Vui lòng nhập số phòng lớn hơn 0");
         }
         if (request.getArea() <= 0) {
-            throw new RuntimeException("Area phải > 0");
+            throw new BadRequestException("Diện tích phải lớn hơn 0");
         }
 
         Room room = new Room();
@@ -53,11 +60,11 @@ public class RoomServiceImpl implements RoomService {
                 .orElseThrow(() -> new RuntimeException("Branch not found")));
         room.setRoomType(roomTypeRepository.findById(request.getRoomTypeId())
                 .orElseThrow(() -> new RuntimeException("RoomType not found")));
-        room.setName(resolveRoomName(request.getName(), request.getNumber()));
+        room.setName(resolveRoomName(request.getName()));
         room.setNumber(request.getNumber());
         room.setArea(request.getArea());
         room.setThumbnail(request.getThumbnail());
-        room.setStatus(request.getStatus() != null ? request.getStatus() : RoomStatus.AVAILABLE);
+        applyRoomStatus(room, request.getStatus() != null ? request.getStatus() : RoomStatus.AVAILABLE);
 
         roomRepository.save(room);
         replaceAmenities(room, request.getAmenities());
@@ -77,14 +84,14 @@ public class RoomServiceImpl implements RoomService {
     public void deleteRoomById(int id) {
         Room room = roomRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
-        roomAmenityRepository.deleteByRoomId(room.getId());
-        roomRepository.delete(room);
+        room.setActive(false);
+        roomRepository.save(room);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<RoomResponse> getListRoom() {
-        return roomRepository.findAll().stream().map(this::toResponse).toList();
+        return roomRepository.findVisibleRooms().stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -109,8 +116,8 @@ public class RoomServiceImpl implements RoomService {
 
         if (request.getName() != null && !request.getName().isBlank()) {
             room.setName(request.getName().trim());
-        } else if ((room.getName() == null || room.getName().isBlank()) && request.getNumber() != null && request.getNumber() > 0) {
-            room.setName(resolveRoomName(null, request.getNumber()));
+        } else if (room.getName() == null || room.getName().isBlank()) {
+            room.setName(resolveRoomName(null));
         }
 
         if (request.getArea() != null && request.getArea() > 0) {
@@ -122,7 +129,7 @@ public class RoomServiceImpl implements RoomService {
         }
 
         if (request.getStatus() != null) {
-            room.setStatus(resolveManualRoomStatus(room.getId(), request.getStatus()));
+            applyRoomStatus(room, resolveManualRoomStatus(room.getId(), request.getStatus()));
         }
 
         Room saved = roomRepository.save(room);
@@ -167,20 +174,45 @@ public class RoomServiceImpl implements RoomService {
                 .id(room.getId())
                 .branch(room.getBranch())
                 .roomType(room.getRoomType())
-                .name(resolveRoomName(room.getName(), room.getNumber()))
+                .name(resolveRoomName(room.getName()))
                 .number(room.getNumber())
                 .area(room.getArea())
                 .thumbnail(room.getThumbnail())
                 .status(room.getStatus() != null ? room.getStatus() : RoomStatus.AVAILABLE)
+                .cleaningStartedAt(room.getCleaningStartedAt())
+                .active(room.getActive() == null || room.getActive())
                 .amenities(amenities)
                 .build();
     }
 
-    private String resolveRoomName(String name, int number) {
+    @Override
+    @Transactional
+    public RoomResponse updateRoomStatus(int id, RoomStatus status) {
+        if (status == null) {
+            throw new RuntimeException("Room status is required");
+        }
+        Room room = roomRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+        applyRoomStatus(room, resolveManualRoomStatus(room.getId(), status));
+        return toResponse(roomRepository.save(room));
+    }
+
+    private void applyRoomStatus(Room room, RoomStatus status) {
+        room.setStatus(status);
+        if (status == RoomStatus.CLEANING) {
+            if (room.getCleaningStartedAt() == null) {
+                room.setCleaningStartedAt(LocalDateTime.now());
+            }
+        } else {
+            room.setCleaningStartedAt(null);
+        }
+    }
+
+    private String resolveRoomName(String name) {
         if (name != null && !name.isBlank()) {
             return name.trim();
         }
-        return "Phòng " + number;
+        return "Phòng";
     }
 
     private RoomStatus resolveManualRoomStatus(int roomId, RoomStatus requestedStatus) {

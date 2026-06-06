@@ -3,6 +3,7 @@ package com.example.homestaymanager.service;
 import com.example.homestaymanager.enums.BookingStatus;
 import com.example.homestaymanager.enums.RoomStatus;
 import com.example.homestaymanager.repository.BookingRepository;
+import com.example.homestaymanager.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 public class BookingExpirationScheduler {
 
     private final BookingRepository bookingRepository;
+    private final RoomRepository roomRepository;
 
     @Scheduled(fixedDelay = 60000)
     @Transactional
@@ -35,7 +37,19 @@ public class BookingExpirationScheduler {
                     RoomStatus currentStatus = booking.getRoom().getStatus();
                     if (currentStatus == null || currentStatus == RoomStatus.AVAILABLE) {
                         booking.getRoom().setStatus(RoomStatus.WAITING_CHECKIN);
+                        booking.getRoom().setCleaningStartedAt(null);
                     }
+                });
+    }
+
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void markCleanedRoomsAvailable() {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(1);
+        roomRepository.findVisibleRoomsByStatusAndCleaningStartedAtBefore(RoomStatus.CLEANING, threshold)
+                .forEach((room) -> {
+                    room.setStatus(RoomStatus.AVAILABLE);
+                    room.setCleaningStartedAt(null);
                 });
     }
 }

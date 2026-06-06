@@ -9,6 +9,7 @@ import com.example.homestaymanager.security.SecurityUtil;
 import com.example.homestaymanager.service.StatisticsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,10 +19,12 @@ public class StatisticsController {
     private final StatisticsService statisticsService;
 
     @GetMapping("/statistics/overview")
-    public ApiResponse<StatisticsResponse> getOverview() {
+    public ApiResponse<StatisticsResponse> getOverview(
+            @RequestParam(required = false) Integer occupancyYear,
+            @RequestParam(required = false) Integer occupancyMonth) {
         if (!SecurityUtil.isAdmin()) {
             throw new UnauthorizedException("Only admin can view statistics");
         }
-        return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, statisticsService.getOverview());
+        return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, statisticsService.getOverview(occupancyYear, occupancyMonth));
     }
 }

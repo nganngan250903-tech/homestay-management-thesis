@@ -1,6 +1,7 @@
 package com.example.homestaymanager.service;
 
 import com.example.homestaymanager.dto.request.UpdateCustomerRequest;
+import com.example.homestaymanager.dto.request.CreateQuickCustomerRequest;
 import com.example.homestaymanager.dto.response.BookingResponse;
 import com.example.homestaymanager.dto.response.CustomerResponse;
 import com.example.homestaymanager.enums.CustomerStatus;
@@ -9,6 +10,7 @@ import java.util.List;
 
 public interface CustomerService {
     Integer createCustomer(Customer customer);
+    CustomerResponse createQuickCustomer(CreateQuickCustomerRequest request);
     CustomerResponse getCustomerByID(int id);
     public void deleteCustomerById(int id);
     List<CustomerResponse> getListCustomer(String keyword);

@@ -53,7 +53,7 @@ public class VnPayService {
 
     public PaymentUrlResponse createPaymentUrl(int bookingId, String clientIp) {
         BookingResponse booking = bookingService.getBookingById(bookingId);
-        if (booking.getCurrentStatus() != BookingStatus.PENDING && booking.getCurrentStatus() != BookingStatus.CONFIRMED) {
+        if (booking.getCurrentStatus() != BookingStatus.PENDING) {
             throw new RuntimeException("Booking không ở trạng thái có thể thanh toán");
         }
         if (booking.getTotalAmount() == null || booking.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
@@ -165,7 +165,7 @@ public class VnPayService {
 
     private void confirmPaidBooking(Booking booking) {
         BookingStatus status = booking.getCurrentStatus();
-        if (status != BookingStatus.PENDING && status != BookingStatus.CONFIRMED) {
+        if (status != BookingStatus.PENDING) {
             throw new RuntimeException("Booking không ở trạng thái có thể xác nhận thanh toán");
         }
         booking.setPaidAmount(booking.getTotalAmount());
@@ -177,6 +177,7 @@ public class VnPayService {
                 && booking.getActualCheckOutAt() == null
                 && (booking.getRoom().getStatus() == null || booking.getRoom().getStatus() == RoomStatus.AVAILABLE)) {
             booking.getRoom().setStatus(RoomStatus.WAITING_CHECKIN);
+            booking.getRoom().setCleaningStartedAt(null);
         }
     }
 

@@ -2,6 +2,7 @@ package com.example.homestaymanager.controller;
 
 import com.example.homestaymanager.constant.ApiMessage;
 import com.example.homestaymanager.constant.ApiStatus;
+import com.example.homestaymanager.dto.request.CreateQuickCustomerRequest;
 import com.example.homestaymanager.dto.request.UpdateCustomerRequest;
 import com.example.homestaymanager.dto.response.ApiResponse;
 import com.example.homestaymanager.dto.response.BookingResponse;
@@ -24,8 +25,8 @@ public class CustomerController {
 
     @GetMapping("/customers")
     public ApiResponse<List<CustomerResponse>> getListCustomer(@RequestParam(required = false) String keyword) {
-        if (!SecurityUtil.isAdmin()) {
-            throw new UnauthorizedException("Only admin can view customers");
+        if (!SecurityUtil.isEmployee()) {
+            throw new UnauthorizedException("Chỉ nhân viên hoặc quản trị viên có thể xem danh sách khách hàng");
         }
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, customerService.getListCustomer(keyword));
     }
@@ -33,7 +34,7 @@ public class CustomerController {
     @GetMapping("/customers/lookup")
     public ApiResponse<List<CustomerResponse>> lookupCustomers(@RequestParam(required = false) String keyword) {
         if (!SecurityUtil.isEmployee()) {
-            throw new UnauthorizedException("Only staff can lookup customers");
+            throw new UnauthorizedException("Chỉ nhân viên hoặc quản trị viên có thể tra cứu khách hàng");
         }
         if (keyword == null || keyword.isBlank()) {
             return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, List.of());
@@ -48,18 +49,26 @@ public class CustomerController {
     @PostMapping("/customers")
     public ApiResponse<Integer> createCustomer(@RequestBody Customer customer) {
         if (!SecurityUtil.isAdmin()) {
-            throw new UnauthorizedException("Only admin can create customers");
+            throw new UnauthorizedException("Chỉ quản trị viên có thể tạo khách hàng");
         }
         int id = customerService.createCustomer(customer);
         return ApiResponse.of(ApiStatus.OK, ApiMessage.CREATED, id);
     }
 
+    @PostMapping("/customers/quick")
+    public ApiResponse<CustomerResponse> createQuickCustomer(@RequestBody CreateQuickCustomerRequest request) {
+        if (!SecurityUtil.isAdmin() && !SecurityUtil.isEmployee()) {
+            throw new UnauthorizedException("Chỉ nhân viên hoặc quản trị viên có thể tạo nhanh khách hàng");
+        }
+        return ApiResponse.of(ApiStatus.OK, ApiMessage.CREATED, customerService.createQuickCustomer(request));
+    }
+
     @GetMapping("/customers/{id}")
     public ApiResponse<CustomerResponse> getCustomerById(@PathVariable int id) {
-        if (!SecurityUtil.isAdmin()) {
+        if (!SecurityUtil.isEmployee()) {
             var current = SecurityUtil.getCurrentUser();
             if (current == null || current.getId() != id) {
-                throw new UnauthorizedException("No permission to view this customer");
+                throw new UnauthorizedException("Không có quyền xem thông tin khách hàng này");
             }
         }
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, customerService.getCustomerByID(id));
@@ -70,7 +79,7 @@ public class CustomerController {
         if (!SecurityUtil.isAdmin()) {
             var current = SecurityUtil.getCurrentUser();
             if (current == null || current.getId() != id) {
-                throw new UnauthorizedException("No permission to update this customer");
+                throw new UnauthorizedException("Không có quyền cập nhật thông tin khách hàng này");
             }
         }
         return ApiResponse.of(ApiStatus.OK, ApiMessage.UPDATED, customerService.updateCustomerById(id, request));
@@ -79,7 +88,7 @@ public class CustomerController {
     @PatchMapping("/customers/{id}/status")
     public ApiResponse<CustomerResponse> updateCustomerStatus(@PathVariable int id, @RequestBody UpdateCustomerRequest request) {
         if (!SecurityUtil.isAdmin()) {
-            throw new UnauthorizedException("Only admin can update customer status");
+            throw new UnauthorizedException("Chỉ quản trị viên có thể cập nhật trạng thái khách hàng");
         }
         CustomerStatus status = request != null ? request.getStatus() : null;
         return ApiResponse.of(ApiStatus.OK, ApiMessage.UPDATED, customerService.updateCustomerStatus(id, status));
@@ -90,7 +99,7 @@ public class CustomerController {
         if (!SecurityUtil.isAdmin()) {
             var current = SecurityUtil.getCurrentUser();
             if (current == null || current.getId() != id) {
-                throw new UnauthorizedException("No permission to view this customer booking history");
+                throw new UnauthorizedException("Không có quyền xem lịch sử đặt phòng của khách hàng này");
             }
         }
         return ApiResponse.of(ApiStatus.OK, ApiMessage.SUCCESS, customerService.getCustomerBookings(id));
@@ -99,7 +108,7 @@ public class CustomerController {
     @DeleteMapping("/customers/{id}")
     public ApiResponse<?> deleteCustomerById(@PathVariable int id) {
         if (!SecurityUtil.isAdmin()) {
-            throw new UnauthorizedException("Only admin can delete customers");
+            throw new UnauthorizedException("Chỉ quản trị viên có thể xóa khách hàng");
         }
         customerService.deleteCustomerById(id);
         return ApiResponse.of(ApiStatus.OK, ApiMessage.DELETED, null);
