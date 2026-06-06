@@ -165,6 +165,9 @@ public class VnPayService {
 
     private void confirmPaidBooking(Booking booking) {
         BookingStatus status = booking.getCurrentStatus();
+        if (status == BookingStatus.CONFIRMED) {
+            return;
+        }
         if (status != BookingStatus.PENDING) {
             throw new RuntimeException("Booking không ở trạng thái có thể xác nhận thanh toán");
         }
