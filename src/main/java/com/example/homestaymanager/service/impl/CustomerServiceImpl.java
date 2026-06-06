@@ -90,10 +90,11 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional
     public void deleteCustomerById(int id){
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
-        customerRepository.delete(customer);
+        customer.setStatus(CustomerStatus.LOCKED);
     }
 
     @Override
