@@ -12,7 +12,7 @@ public class CreateRoomRequest {
     private Integer branchId;
     private Integer roomTypeId;
     private String name;
-    private int number;
+    private Integer number;
     private float area;
     private String thumbnail;
     private RoomStatus status;

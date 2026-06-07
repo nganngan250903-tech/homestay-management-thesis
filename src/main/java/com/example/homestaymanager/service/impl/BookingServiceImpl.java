@@ -64,6 +64,9 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = resolveCustomer(request);
         Room room = roomRepository.findById(request.getRoomId())
                 .orElseThrow(() -> new RuntimeException("Phòng không tồn tại"));
+        if (Boolean.FALSE.equals(room.getActive())) {
+            throw new RuntimeException("Phòng đã ngừng kinh doanh, không thể đặt phòng");
+        }
 
         int maxGuest = room.getRoomType().getMaxGuest();
         if (request.getGuestCount() > maxGuest) {
@@ -177,11 +180,11 @@ public class BookingServiceImpl implements BookingService {
     @Transactional(readOnly = true)
     public List<BookingCalendarResponse> getRoomBookingCalendar(int roomId, LocalDate dateFrom, LocalDate dateTo) {
         roomRepository.findById(roomId)
-                .orElseThrow(() -> new RuntimeException("PhÃ²ng khÃ´ng tá»“n táº¡i"));
+                .orElseThrow(() -> new RuntimeException("Phòng không tồn tại"));
         LocalDate fromDate = dateFrom != null ? dateFrom : LocalDate.now();
         LocalDate toDate = dateTo != null ? dateTo : fromDate.plusMonths(6);
         if (!toDate.isAfter(fromDate)) {
-            throw new RuntimeException("Khoáº£ng thá»i gian xem lá»‹ch khÃ´ng há»£p lá»‡");
+            throw new RuntimeException("Khoảng thời gian xem lịch không hợp lệ");
         }
 
         return bookingRepository.findBlockingBookingsForCalendar(
@@ -209,6 +212,7 @@ public class BookingServiceImpl implements BookingService {
         assertStatusTransition(booking.getCurrentStatus(), newStatus);
         booking.setCurrentStatus(newStatus);
         if (newStatus == BookingStatus.CONFIRMED) {
+            booking.setPaidAmount(booking.getTotalAmount());
             refreshRoomStatusFromCurrentBookings(booking.getRoom());
         } else if (newStatus == BookingStatus.CANCELLED || newStatus == BookingStatus.NO_SHOW) {
             refreshRoomStatusFromCurrentBookings(booking.getRoom());
@@ -248,6 +252,7 @@ public class BookingServiceImpl implements BookingService {
             booking.setActualCheckInAt(LocalDateTime.now());
         }
         booking.getRoom().setStatus(RoomStatus.OCCUPIED);
+        booking.getRoom().setCleaningStartedAt(null);
         return toResponse(booking);
     }
 
@@ -266,12 +271,16 @@ public class BookingServiceImpl implements BookingService {
             booking.setActualCheckOutAt(LocalDateTime.now());
         }
         booking.getRoom().setStatus(RoomStatus.CLEANING);
+        booking.getRoom().setCleaningStartedAt(LocalDateTime.now());
         return toResponse(booking);
     }
 
     private void refreshRoomStatusFromCurrentBookings(Room room) {
         RoomStatus nextStatus = resolveCurrentRoomStatus(room.getId());
         room.setStatus(nextStatus);
+        if (nextStatus != RoomStatus.CLEANING) {
+            room.setCleaningStartedAt(null);
+        }
     }
 
     private RoomStatus resolveCurrentRoomStatus(int roomId) {
@@ -361,16 +370,6 @@ public class BookingServiceImpl implements BookingService {
         return holidays.contains(MonthDay.from(date));
     }
 
-    private static int computeRefundPercentage(LocalDateTime checkIn, LocalDateTime cancellationTime) {
-        if (cancellationTime.isBefore(checkIn.minusHours(24))) {
-            return 100;
-        }
-        if (cancellationTime.isBefore(checkIn)) {
-            return 50;
-        }
-        return 0;
-    }
-
     private static void assertStatusTransition(BookingStatus from, BookingStatus to) {
         if (from == to) {
             return;
@@ -394,11 +393,6 @@ public class BookingServiceImpl implements BookingService {
         Integer employeeId = booking.getEmployee() != null ? booking.getEmployee().getId() : null;
         String employeeName = booking.getEmployee() != null ? booking.getEmployee().getName() : null;
         Integer branchId = booking.getRoom().getBranch() != null ? booking.getRoom().getBranch().getId() : null;
-        Integer refundPercentage = null;
-        if (booking.getCurrentStatus() == BookingStatus.CANCELLED) {
-            LocalDateTime referenceTime = booking.getUpdatedAt() != null ? booking.getUpdatedAt() : LocalDateTime.now();
-            refundPercentage = computeRefundPercentage(booking.getCheckIn(), referenceTime);
-        }
         return BookingResponse.builder()
                 .id(booking.getId())
                 .customerId(booking.getCustomer().getId())
@@ -418,7 +412,6 @@ public class BookingServiceImpl implements BookingService {
                 .totalAmount(booking.getTotalAmount())
                 .paidAmount(booking.getPaidAmount())
                 .hasSentReminder(booking.isHasSentReminder())
-                .refundPercentage(refundPercentage)
                 .pendingExpiresAt(booking.getPendingExpiresAt())
                 .createdAt(booking.getCreatedAt())
                 .updatedAt(booking.getUpdatedAt())
@@ -429,6 +422,6 @@ public class BookingServiceImpl implements BookingService {
         if (room.getName() != null && !room.getName().isBlank()) {
             return room.getName().trim();
         }
-        return "Phòng " + room.getNumber();
+        return "Phòng";
     }
 }

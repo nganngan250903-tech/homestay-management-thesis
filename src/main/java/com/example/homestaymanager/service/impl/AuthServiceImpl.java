@@ -48,7 +48,7 @@ public class AuthServiceImpl implements AuthService {
             return customerLoginResponse(customer);
         }
 
-        throw new UnauthorizedException("Email hoăc mật khẩu của bạn chưa đúng!");
+        throw new UnauthorizedException("Email hoặc mật khẩu của bạn chưa đúng!");
     }
 
     @Override
@@ -113,7 +113,7 @@ public class AuthServiceImpl implements AuthService {
 
     private static void validateLoginRequest(LoginRequest request) {
         if (request == null || isBlank(request.getEmail()) || isBlank(request.getPassword())) {
-            throw new UnauthorizedException("Email or password is incorrect");
+            throw new UnauthorizedException("Email hoặc mật khẩu của bạn chưa đúng!");
         }
     }
 

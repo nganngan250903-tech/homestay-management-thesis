@@ -59,7 +59,7 @@ public class CloudinaryServiceImpl implements CloudinaryService {
                     .folder(safeFolder)
                     .build();
         } catch (IOException exception) {
-            throw new RuntimeException("Không thể đọc file ảnh", exception);
+            throw new RuntimeException("Không thể đọc hoặc upload file ảnh", exception);
         }
     }
 

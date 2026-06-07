@@ -19,7 +19,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
@@ -114,8 +119,8 @@ public class PaymentController {
         String roomName = null;
         if (room != null) {
             roomName = room.getName() != null && !room.getName().isBlank()
-                    ? room.getName()
-                    : "Phòng " + room.getNumber();
+                    ? room.getName().trim()
+                    : "Phòng";
         }
         return PaymentTransactionResponse.builder()
                 .id(transaction.getId())
