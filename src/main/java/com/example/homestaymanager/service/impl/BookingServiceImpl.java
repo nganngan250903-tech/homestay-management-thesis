@@ -17,6 +17,7 @@ import com.example.homestaymanager.repository.RoomPricingRepository;
 import com.example.homestaymanager.repository.RoomRepository;
 import com.example.homestaymanager.service.BookingService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -40,8 +41,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
 
-    private static final int PENDING_HOLD_MINUTES = 30;
-
     private static final List<BookingStatus> BLOCKING_STATUSES = List.of(
             BookingStatus.PENDING,
             BookingStatus.CONFIRMED);
@@ -51,6 +50,9 @@ public class BookingServiceImpl implements BookingService {
     private final EmployeeRepository employeeRepository;
     private final RoomRepository roomRepository;
     private final RoomPricingRepository roomPricingRepository;
+
+    @Value("${app.booking.pending-hold-minutes:30}")
+    private int pendingHoldMinutes;
 
     @Override
     @Transactional
@@ -97,13 +99,17 @@ public class BookingServiceImpl implements BookingService {
         booking.setCheckOut(request.getCheckOut());
         booking.setGuestCount(request.getGuestCount());
         booking.setCurrentStatus(BookingStatus.PENDING);
-        booking.setPendingExpiresAt(LocalDateTime.now().plusMinutes(PENDING_HOLD_MINUTES));
+        booking.setPendingExpiresAt(LocalDateTime.now().plusMinutes(resolvePendingHoldMinutes()));
         booking.setTotalAmount(total);
         booking.setPaidAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         booking.setHasSentReminder(false);
 
         bookingRepository.save(booking);
         return toResponse(booking);
+    }
+
+    private int resolvePendingHoldMinutes() {
+        return pendingHoldMinutes > 0 ? pendingHoldMinutes : 30;
     }
 
     private Customer resolveCustomer(CreateBookingRequest request) {

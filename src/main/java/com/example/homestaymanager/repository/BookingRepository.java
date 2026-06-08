@@ -78,6 +78,11 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
 
     java.util.List<Booking> findByCurrentStatusAndCheckInBeforeAndActualCheckInAtIsNull(BookingStatus status, LocalDateTime now);
 
+    java.util.List<Booking> findByCurrentStatusAndCheckInGreaterThanEqualAndCheckInBeforeAndActualCheckInAtIsNullAndHasSentReminderFalse(
+            BookingStatus status,
+            LocalDateTime start,
+            LocalDateTime end);
+
     java.util.List<Booking> findByCurrentStatusAndCheckOutBeforeAndActualCheckOutAtIsNotNull(BookingStatus status, LocalDateTime now);
 
     Optional<Booking> findFirstByRoomIdAndCurrentStatusAndActualCheckInAtIsNotNullAndActualCheckOutAtIsNullOrderByActualCheckInAtDesc(

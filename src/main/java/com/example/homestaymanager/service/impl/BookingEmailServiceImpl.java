@@ -1,7 +1,6 @@
 package com.example.homestaymanager.service.impl;
 
 import com.example.homestaymanager.model.Booking;
-import com.example.homestaymanager.model.Branch;
 import com.example.homestaymanager.model.Customer;
 import com.example.homestaymanager.model.Room;
 import com.example.homestaymanager.service.BookingEmailService;
@@ -38,19 +37,43 @@ public class BookingEmailServiceImpl implements BookingEmailService {
     private String mailUsername;
 
     @Override
-    public void sendBookingConfirmedEmail(Booking booking) {
+    public boolean sendBookingConfirmedEmail(Booking booking) {
+        return sendEmail(
+                booking,
+                "Xác nhận đặt phòng thành công",
+                buildEmailHtml(
+                        booking,
+                        "Xác nhận đặt phòng thành công",
+                        "Cảm ơn bạn đã đặt phòng. Thông tin đặt phòng của bạn đã được xác nhận."));
+    }
+
+    @Override
+    public boolean sendCheckInReminderEmail(Booking booking) {
+        return sendEmail(
+                booking,
+                "Nhắc lịch nhận phòng hôm nay",
+                buildEmailHtml(
+                        booking,
+                        "Nhắc lịch nhận phòng hôm nay",
+                        "Hôm nay là ngày check-in của bạn. Vui lòng đến homestay đúng thời gian và liên hệ với chúng tôi nếu cần hỗ trợ."));
+    }
+
+    private boolean sendEmail(Booking booking, String subject, String html) {
         if (!mailEnabled) {
-            log.info("Skip booking confirmation email because MAIL_ENABLED is false");
-            return;
+            log.info("Skip booking email because MAIL_ENABLED is false");
+            System.out.println("Gửi gmail thất bại: MAIL_ENABLED đang là false");
+            return false;
         }
         if (booking == null || booking.getCustomer() == null || isBlank(booking.getCustomer().getEmail())) {
-            log.warn("Skip booking confirmation email because booking customer email is missing");
-            return;
+            log.warn("Skip booking email because booking customer email is missing");
+            System.out.println("Gửi gmail thất bại: booking không có email khách hàng");
+            return false;
         }
         String from = isBlank(mailFrom) ? mailUsername : mailFrom;
         if (isBlank(from)) {
-            log.warn("Skip booking confirmation email because MAIL_FROM/MAIL_USERNAME is missing");
-            return;
+            log.warn("Skip booking email because MAIL_FROM/MAIL_USERNAME is missing");
+            System.out.println("Gửi gmail thất bại: thiếu MAIL_FROM hoặc MAIL_USERNAME");
+            return false;
         }
 
         try {
@@ -58,18 +81,23 @@ public class BookingEmailServiceImpl implements BookingEmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(from);
             helper.setTo(booking.getCustomer().getEmail());
-            helper.setSubject("Xác nhận đặt phòng thành công");
-            helper.setText(buildEmailHtml(booking), true);
+            helper.setSubject(subject);
+            helper.setText(html, true);
             mailSender.send(message);
+            System.out.println("Đã gửi gmail thành công");
+            return true;
         } catch (Exception exception) {
-            log.warn("Cannot send booking confirmation email for booking {}", booking.getId(), exception);
+            log.warn("Cannot send booking email for booking {}", booking.getId(), exception);
+            System.out.println("Gửi gmail thất bại: " + exception.getMessage());
+            return false;
         }
     }
 
-    private String buildEmailHtml(Booking booking) {
+    private String buildEmailHtml(Booking booking, String title, String description) {
         Customer customer = booking.getCustomer();
         Room room = booking.getRoom();
 
+        String customerName = customer != null ? valueOrDefault(customer.getName(), "quý khách") : "quý khách";
         String roomName = room != null ? valueOrDefault(room.getName(), "Đang cập nhật") : "Đang cập nhật";
         String guestCount = String.valueOf(booking.getGuestCount());
 
@@ -80,11 +108,11 @@ public class BookingEmailServiceImpl implements BookingEmailService {
                   <div style="max-width:640px;margin:0 auto;padding:24px;">
                     <div style="background:#ffffff;border:1px solid #dbeafe;border-radius:12px;overflow:hidden;">
                       <div style="background:#dcfce7;padding:18px 24px;">
-                        <h2 style="margin:0;color:#166534;font-size:22px;">Xác nhận đặt phòng thành công</h2>
+                        <h2 style="margin:0;color:#166534;font-size:22px;">%s</h2>
                       </div>
                       <div style="padding:24px;">
                         <p style="margin:0 0 16px;">Xin chào %s,</p>
-                        <p style="margin:0 0 20px;">Cảm ơn bạn đã đặt phòng. Thông tin đặt phòng của bạn đã được xác nhận.</p>
+                        <p style="margin:0 0 20px;">%s</p>
                         <table style="width:100%%;border-collapse:collapse;font-size:15px;">
                           %s
                           %s
@@ -101,7 +129,9 @@ public class BookingEmailServiceImpl implements BookingEmailService {
                 </body>
                 </html>
                 """.formatted(
-                escapeHtml(valueOrDefault(customer.getName(), "quý khách")),
+                escapeHtml(title),
+                escapeHtml(customerName),
+                escapeHtml(description),
                 row("Tên homestay", HOMESTAY_NAME),
                 row("Địa chỉ homestay", HOMESTAY_ADDRESS),
                 row("Tên phòng", roomName),

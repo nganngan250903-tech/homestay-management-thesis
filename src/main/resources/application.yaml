@@ -51,9 +51,12 @@ cloudinary:
   api-secret: ${CLOUDINARY_API_SECRET:}
 
 app:
+  booking:
+    pending-hold-minutes: ${BOOKING_PENDING_HOLD_MINUTES:30}
   mail:
     enabled: ${MAIL_ENABLED:false}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    check-in-reminder-cron: ${CHECK_IN_REMINDER_CRON}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,https://homestay-frontend-ruddy.vercel.app,https://homestay-frontend-ruddy*.vercel.app}
   oauth2:
