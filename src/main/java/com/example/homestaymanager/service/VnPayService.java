@@ -38,6 +38,7 @@ public class VnPayService {
     private final BookingService bookingService;
     private final BookingRepository bookingRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final BookingEmailService bookingEmailService;
 
     @Value("${vnpay.pay-url:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}")
     private String payUrl;
@@ -101,9 +102,10 @@ public class VnPayService {
     public BookingResponse confirmDemoPayment(int bookingId) {
         var booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new RuntimeException("Booking không tồn tại"));
-        confirmPaidBooking(booking);
+        boolean newlyConfirmed = confirmPaidBooking(booking);
         savePaymentTransaction(booking, "DEMO", String.valueOf(bookingId), null, "00",
                 "Thanh toan demo thanh cong", booking.getTotalAmount(), PaymentTransactionStatus.SUCCESS, null, LocalDateTime.now());
+        sendBookingConfirmedEmailIfNeeded(booking, newlyConfirmed);
         return BookingServiceImpl.toResponse(booking);
     }
 
@@ -159,14 +161,15 @@ public class VnPayService {
             throw new RuntimeException("Số tiền thanh toán không khớp với booking");
         }
 
-        confirmPaidBooking(booking);
+        boolean newlyConfirmed = confirmPaidBooking(booking);
+        sendBookingConfirmedEmailIfNeeded(booking, newlyConfirmed);
         return BookingServiceImpl.toResponse(booking);
     }
 
-    private void confirmPaidBooking(Booking booking) {
+    private boolean confirmPaidBooking(Booking booking) {
         BookingStatus status = booking.getCurrentStatus();
         if (status == BookingStatus.CONFIRMED) {
-            return;
+            return false;
         }
         if (status != BookingStatus.PENDING) {
             throw new RuntimeException("Booking không ở trạng thái có thể xác nhận thanh toán");
@@ -181,6 +184,13 @@ public class VnPayService {
                 && (booking.getRoom().getStatus() == null || booking.getRoom().getStatus() == RoomStatus.AVAILABLE)) {
             booking.getRoom().setStatus(RoomStatus.WAITING_CHECKIN);
             booking.getRoom().setCleaningStartedAt(null);
+        }
+        return true;
+    }
+
+    private void sendBookingConfirmedEmailIfNeeded(Booking booking, boolean newlyConfirmed) {
+        if (newlyConfirmed) {
+            bookingEmailService.sendBookingConfirmedEmail(booking);
         }
     }
 

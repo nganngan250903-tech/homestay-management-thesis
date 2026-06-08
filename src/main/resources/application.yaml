@@ -20,6 +20,18 @@ spring:
       max-file-size: 20MB
       max-request-size: 20MB
 
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
   security:
     oauth2:
       client:
@@ -39,6 +51,9 @@ cloudinary:
   api-secret: ${CLOUDINARY_API_SECRET:}
 
 app:
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,https://homestay-frontend-ruddy.vercel.app,https://homestay-frontend-ruddy*.vercel.app}
   oauth2:
