@@ -53,6 +53,7 @@ cloudinary:
 app:
   booking:
     pending-hold-minutes: ${BOOKING_PENDING_HOLD_MINUTES:30}
+    expiration-scan-delay-ms: ${BOOKING_EXPIRATION_SCAN_DELAY_MS:60000}
   mail:
     enabled: ${MAIL_ENABLED:false}
     from: ${MAIL_FROM:${MAIL_USERNAME:}}

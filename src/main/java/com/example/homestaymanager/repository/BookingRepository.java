@@ -53,16 +53,7 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
               and (:status is null or b.currentStatus = :status)
               and (:dateFrom is null or b.checkIn >= :dateFrom)
               and (:dateTo is null or b.checkIn < :dateTo)
-            order by
-              case
-                when b.currentStatus in (
-                  com.example.homestaymanager.enums.BookingStatus.PENDING,
-                  com.example.homestaymanager.enums.BookingStatus.CONFIRMED
-                ) then 0
-                else 1
-              end,
-              b.createdAt desc,
-              b.id desc
+            order by b.createdAt desc, b.id desc
             """)
     Page<Booking> findByFilters(
             @Param("customerId") Integer customerId,

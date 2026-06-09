@@ -18,7 +18,7 @@ public class BookingExpirationScheduler {
     private final BookingRepository bookingRepository;
     private final RoomRepository roomRepository;
 
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelayString = "${app.booking.expiration-scan-delay-ms:60000}")
     @Transactional
     public void cancelExpiredPendingBookings() {
         bookingRepository.findByCurrentStatusAndPendingExpiresAtBefore(BookingStatus.PENDING, LocalDateTime.now())
